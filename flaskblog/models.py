@@ -4,35 +4,19 @@ from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from flask import current_app
 from flaskblog import db, login_manager
 from flask_login import UserMixin
+from sqlalchemy import func, create_engine
+from sqlalchemy.event import listen
+from geoalchemy2 import Geometry
+from geoalchemy2.elements import WKTElement
+from geoalchemy2.shape import to_shape
 
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-class ServiceType(enum.Enum):
-   Offer = 1
-   Request = 2
-
-class Category(enum.Enum):
-    home_reparations = 1
-    garden = 2
-    tutoring = 3
-    car_bike_boat_reparations = 4
-    handcrafts = 5
-    pets = 6
-    accounting_taxes = 7
-    fashion_beauty = 8
-    electonic = 9
-    music_movies_books = 10
-    transportation = 11
-    food_drinks = 12
-    photography = 13
-    tickets = 14
-    other = 15
 
 class User(db.Model, UserMixin):
-    __tablename__ = 'users'
 
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(20), nullable=False)
@@ -66,15 +50,47 @@ class User(db.Model, UserMixin):
 
 
 class Post(db.Model):
-    __tablename__ = 'posts'
 
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
-    service = db.Column(db.Enum(ServiceType), nullable=False, default=ServiceType.Offer)
-    category = db.Column(db.Enum(Category), nullable=False, default=Category.other)
+    # location = db.Column(Geometry("POINT", srid=4326, dimension=2, management=True))
     date_posted = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     content = db.Column(db.Text, nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+
+    def get_service_location_lat(self):
+        point = to_shape(self.location)
+        return point.x
+
+    def get_service_location_lng(self):
+        point = to_shape(self.location)
+        return point.y
 
     def __repr__(self):
-        return f"Post('{self.title}', '{self.date_posted}', '{self.service}', '{self.category}')"
+        return f"Post('{self.title}', '{self.date_posted}', '{self.location}', '{self.content}')"
+
+    @staticmethod
+    def point_representation(lat, lng):
+        point = "POINT(%s %s)" % (lat, lng)
+        wkb_element = WKTElement(point, srid=4326)
+        return wkb_element
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "username": self.profile.user.username,
+            "title": self.title,
+            "location": {
+                "lat": self.get_service_location_lat(),
+                "lng": self.get_service_location_lng(),
+            },
+            "content": self.content,
+            "service": self.service,
+        }
+
+    @staticmethod
+    def get_services_within_radius(lat, lng, radius):
+        """Return all service posts within a given radius (in meters)"""
+        return Post.query.filter(
+            func.PtDistWithin(Post.location, func.MakePoint(lat, lng, 4326), radius)
+        ).all()
