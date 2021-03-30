@@ -1,4 +1,4 @@
-import enum
+from enum import IntEnum
 from datetime import datetime
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from flask import current_app
@@ -10,6 +10,22 @@ from geoalchemy2 import Geometry
 from geoalchemy2.elements import WKTElement
 from geoalchemy2.shape import to_shape
 
+# Extends Enum so it can be used in WTForms
+class FormEnum(IntEnum):
+    @classmethod
+    def choices(cls):
+        return [(choice, choice.name) for choice in cls]
+
+    @classmethod
+    def coerce(cls, item):
+        return cls(int(item)) if not isinstance(item, cls) else item
+
+    def __str__(self):
+        return str(self.value)
+
+class TypeOfService(FormEnum):
+    Offer = 1
+    Request = 2
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -30,7 +46,7 @@ class User(db.Model, UserMixin):
     password = db.Column(db.String(60), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     last_login = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)    
-    posts = db.relationship('Post', backref='user', lazy=True)
+    posts = db.relationship('Post', backref='author', lazy=True)
 
     def get_reset_token(self, expires_sec=1800):
         s = Serializer(current_app.config['SECRET_KEY'], expires_sec)
@@ -53,8 +69,10 @@ class Post(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
-    # location = db.Column(Geometry("POINT", srid=4326, dimension=2, management=True))
+    location = db.Column(Geometry("POINT", srid=4326, dimension=2, management=True))
     date_posted = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    type_of_service = db.Column(db.Integer, nullable=False)
+    category = db.Column(db.Integer, nullable=False)
     content = db.Column(db.Text, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 

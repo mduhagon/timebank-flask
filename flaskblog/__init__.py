@@ -19,8 +19,8 @@ mail = Mail()
 
 def load_spatialite(dbapi_conn, connection_record):
 	dbapi_conn.enable_load_extension(True)
-	dbapi_conn.load_extension('/usr/local/lib/mod_spatialite.dylib')
-	dbapi_conn.execute('SELECT InitSpatialMetaData()')
+    # Below load extension works inside Docker image
+	dbapi_conn.execute('SELECT load_extension("mod_spatialite")')
 
 event.listen(Pool, "connect", load_spatialite)
 
@@ -45,7 +45,15 @@ def create_app(config_class=Config):
     app.register_blueprint(main)
     app.register_blueprint(errors)
 
-#    db.drop_all(app = app)
-#    db.create_all(app = app)
+    # Uncomment this to reinitialize the database
+    # print('reinitializing the database. All data is dropped, and data structures recreated')
+    # with app.app_context():
+    #     db.drop_all()
+    #     # moved InitSpatialMetaData() here so you only run this expensive operation once, 
+    #     # and not every time you load the sqlite extension.
+    #     # This command creates all additional views and tables required by
+    #     # spatialite and you need to run it only once (and repeat if you drop_all)
+    #     db.engine.execute('SELECT InitSpatialMetaData()') 
+    #     db.create_all()
 
     return app

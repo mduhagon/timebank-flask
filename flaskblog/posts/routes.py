@@ -13,11 +13,24 @@ posts = Blueprint('posts', __name__)
 def new_post():
     form = PostForm()
     if form.validate_on_submit():
-        post = Post(title=form.title.data, content=form.content.data, location=Post.point_representation(form.lat.data, form.lng.data), author=current_user, service=form.service.data, category=form.category.data)
+        print(dir(form.service.data))
+        post = Post(
+            title=form.title.data, 
+            content=form.content.data, 
+            location=Post.point_representation(form.lat.data, form.lng.data), 
+            user_id=current_user.id, 
+            type_of_service=int(form.service.data), # Take numeric id of choice
+            category=form.category.data)
         db.session.add(post)
         db.session.commit()
         flash('Your post has been created!', 'success')
         return redirect(url_for('main.home'))
+    else:
+        # This will help you see in the console if the form was submitted but 'does nothing'
+        # what is wrong with it
+        for field, errors in form.errors.items():
+            print("Form has errors:", field, ', '.join(errors))   
+
     return render_template('create_post.html', title='New Post',
                            form=form, legend='New Post')
 
